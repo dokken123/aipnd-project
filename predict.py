@@ -17,7 +17,7 @@ parser.add_argument("--gpu", help="use gpu", action="store_true")
 
 args = parser.parse_args()
 
-test_dir = args.input + '/test'
+use_cuda = args.gpu and torch.cuda.is_available()
 
 with open(args.category_names, 'r') as f:
     cat_to_name = json.load(f)
@@ -45,8 +45,11 @@ class FFClassifier(nn.Module):
 # TODO: Write a function that loads a checkpoint and rebuilds the model
 def load_checkpoint(checkpoint_path):
     checkpoint = torch.load(checkpoint_path)
-    
-    if checkpoint['arch'] == 'vgg16':
+    if checkpoint['arch'] == 'resnet18':
+        model = models.resnet18(pretrained=True)
+    elif checkpoint['arch'] == 'alexnet':
+        model = models.alexnet(pretrained=True)
+    else:
         model = models.vgg16(pretrained=True)
         for param in model.parameters():
             param.requires_grad = False
@@ -64,7 +67,10 @@ def load_checkpoint(checkpoint_path):
     return model
 
 model = load_checkpoint(args.checkpoint) #load_checkpoint('classifier.pt')
-
+if use_cuda:
+    model.cuda()
+else:
+    model.cpu()
  
 def process_image(image):
     ''' Scales, crops, and normalizes a PIL image for a PyTorch model,
@@ -90,7 +96,7 @@ def process_image(image):
     
     return image
 
-image_path = test_dir + '/28/image_05230.jpg'
+image_path = args.input + '/test/28/image_05230.jpg'
 image = Image.open(image_path)
 image = process_image(image)
 
@@ -136,7 +142,7 @@ def predict(image_path, model, topk=5):
 
 
 # TODO: Display an image along with the top 5 classes
-image_path = test_dir + '/28/image_05230.jpg'
+image_path = args.input + '/test/28/image_05230.jpg'
 
 model.eval()
 top_probs, top_classes = predict(image_path, model, args.top_k)
@@ -162,7 +168,7 @@ img_idx = 20
 
 inputs = Variable(images[img_idx,:].unsqueeze(0))
 model.eval()
-model.cpu()
+# model.cpu()
 ps = torch.exp(model.forward(inputs))
 
 top_probs, top_classes = ps.topk(args.top_k)

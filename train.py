@@ -14,8 +14,8 @@ import argparse
 
 parser = argparse.ArgumentParser()
 parser.add_argument("data_dir", help="directory of data")
-parser.add_argument("--save_dir", help="save dir of checkpoint", default="./")
-parser.add_argument("--arch", help="architecture", default="vgg13")
+parser.add_argument("--save_dir", help="save dir of checkpoint", default=".")
+parser.add_argument("--arch", help="architecture", default="vgg16")
 parser.add_argument("--learning_rate", help="learning rate", type=float, default=0.001)
 parser.add_argument("--hidden_units", help="hidden units", type=int, default=512)
 parser.add_argument("--epochs", help="epochs", type=int, default=20)
@@ -23,7 +23,7 @@ parser.add_argument("--gpu", help="use gpu", action="store_true")
 
 args = parser.parse_args()
 
-use_cuda = args.gpu
+use_cuda = args.gpu and torch.cuda.is_available()
 
 data_dir = args.data_dir
 train_dir = data_dir + '/train'
@@ -88,12 +88,17 @@ class FFClassifier(nn.Module):
         x = F.log_softmax(x, dim=1)
         return x
 
-model = models.vgg16(pretrained=True)
-for param in model.parameters():
-    param.requires_grad = False
+if args.arch == 'resnet18':
+    model = models.resnet18(pretrained=True)
+elif args.arch == 'alexnet':
+    model = models.alexnet(pretrained=True)
+else:
+    model = models.vgg16(pretrained=True)
+    for param in model.parameters():
+        param.requires_grad = False
 
 # Create your own classifier
-net = FFClassifier(25088, 4096, len(cat_to_name))
+net = FFClassifier(25088, args.hidden_units, len(cat_to_name))
 
 # Put your classifier on the pretrained network
 model.classifier = net
@@ -120,7 +125,7 @@ def validation(model, val_data, criterion, cuda=False):
         _, predicted = ps.max(dim=1)
         
         equals = predicted == labels.data
-        accuracy += torch.sum(equals)/len(equals)
+        accuracy += torch.sum(equals)
 
         running_val_loss += val_loss.data[0]
     val_time = time.time() - val_start
@@ -138,7 +143,7 @@ else:
 
 model.train()
 for e in range(epochs):
-    print(f"Epoch {e+1}/{epochs}")
+    print("Epoch %s/%s" % (e+1, epochs))
     counter = 0
     running_loss = 0
     for inputs, labels in dataloaders['train']:
@@ -183,4 +188,4 @@ torch.save({'arch': args.arch,
             'hidden': args.hidden_units,
             'state_dict': model.state_dict(),
             'class_to_idx': model.class_to_idx}, 
-            'classifier.pt')
+            '%s/classifier.pt' % args.save_dir)
