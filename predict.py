@@ -3,9 +3,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
+import torch.nn.functional as F
+from torch import nn
 from torchvision import datasets, transforms, models
 from torch.autograd import Variable
 import argparse
+import json
 
 parser = argparse.ArgumentParser()
 
@@ -18,6 +21,11 @@ parser.add_argument("--gpu", help="use gpu", action="store_true")
 args = parser.parse_args()
 
 use_cuda = args.gpu and torch.cuda.is_available()
+
+data_dir = args.input
+train_dir = data_dir + '/train'
+valid_dir = data_dir + '/valid'
+test_dir = data_dir + '/test'
 
 with open(args.category_names, 'r') as f:
     cat_to_name = json.load(f)
@@ -159,8 +167,42 @@ p_ax.barh(np.arange(5, 0, -1), top_probs)
 top_cat_names = [cat_to_name[each] for each in top_classes]
 
 p_ax.set_yticks(range(1,6))
-p_ax.set_yticklabels(reversed(top_cat_names));
+p_ax.set_yticklabels(reversed(top_cat_names))
 fig.tight_layout(pad=0.1, h_pad=0)
+
+dirs = {'train': train_dir, 'valid': valid_dir, 'test': test_dir}
+
+# TODO: Define your transforms for the training, validation, and testing sets
+data_transforms = {
+    'train': transforms.Compose([
+        transforms.RandomRotation(45),
+        transforms.RandomResizedCrop(224),
+        transforms.RandomHorizontalFlip(),
+        transforms.ToTensor(),
+        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+    ]),
+    'valid': transforms.Compose([
+        transforms.Resize(256),
+        transforms.CenterCrop(224),
+        transforms.ToTensor(),
+        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+    ]),
+    'test': transforms.Compose([
+        transforms.Resize(256),
+        transforms.CenterCrop(224),
+        transforms.ToTensor(),
+        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+    ]),
+}
+
+# TODO: Load the datasets with ImageFolder
+image_datasets = {x: datasets.ImageFolder(dirs[x], transform=data_transforms[x])
+                  for x in ['train', 'valid', 'test']}
+
+# TODO: Using the image datasets and the trainforms, define the dataloaders
+dataloaders = {x: torch.utils.data.DataLoader(image_datasets[x], batch_size=64,
+                                              shuffle=True)
+               for x in ['train', 'valid', 'test']}
 
 images, labels = next(iter(dataloaders['test']))
 
@@ -185,6 +227,6 @@ img_ax.yaxis.set_visible(False)
 p_ax.barh(np.arange(5, 0, -1), top_probs.data.numpy().squeeze())
 top_cat_names = [cat_to_name[each] for each in top_classes]
 p_ax.set_yticks(range(1,6))
-p_ax.set_yticklabels(reversed(top_cat_names));
+p_ax.set_yticklabels(reversed(top_cat_names))
 fig.tight_layout(pad=0.1, h_pad=0)
 
